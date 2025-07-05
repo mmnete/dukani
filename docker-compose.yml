@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_DB: dukanidb_local
+      POSTGRES_USER: dukani_user
+      POSTGRES_PASSWORD: dukani_password
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./backend:/app/backend
+      - /app/backend/node_modules # Important for backend - ensures node_modules isn't mounted from host if you ever put them there
+    ports:
+      - "8000:8000"
+    environment:
+      DJANGO_SECRET_KEY: your_super_secret_key_for_dev
+      DJANGO_DEBUG: "True"
+      DATABASE_URL: postgres://dukani_user:dukani_password@db:5432/dukanidb_local
+    depends_on:
+      - db
+
+  # --- New/Modified Frontend Service for Development ---
+  frontend:
+    build:
+      context: ./web_app # Path to your React web_app Dockerfile (same as before)
+      dockerfile: Dockerfile_dev # <--- We'll create a separate Dockerfile for development
+    command: npm start # This runs the React development server
+    volumes:
+      - ./web_app:/app/web_app # Mount your local React code for hot-reloading
+      - /app/web_app/node_modules # Exclude node_modules from host mount to avoid issues
+    ports:
+      - "3000:3000" # React dev server runs on 3000
+    environment:
+      # If your React app needs to call the backend, it should point to http://localhost:8000
+      # or http://backend:8000 if calling from inside the frontend container
+      # For local dev, usually you'd configure a proxy in your React app or use localhost.
+      REACT_APP_BACKEND_URL: http://localhost:8000 # Example env var for React app
+    depends_on:
+      - backend # Frontend depends on backend for API calls (optional, but good practice)
+
+volumes:
+  postgres_data:

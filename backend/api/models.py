@@ -1,0 +1,307 @@
+# dukani/backend/api/models.py
+
+import uuid
+from django.db import models
+from django.contrib.auth.models import User
+from django.core.validators import MinValueValidator
+from django.db.models import Sum  # <--- ADDED THIS IMPORT for current_stock property
+from decimal import Decimal
+
+# --- Choices for quantity_type ---
+QUANTITY_TYPE_CHOICES = [
+    ("UNIT", "Unit(s)"),
+    ("WEIGHT_VOLUME", "Weight/Volume (e.g., Kg, Liters)"),
+]
+
+
+# --- Shop Category Model ---
+class ShopCategory(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "Shop Categories"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+# --- Shop Model ---
+class Shop(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True)
+    business_id = models.CharField(max_length=100, unique=True, blank=True, null=True)
+    address = models.CharField(max_length=255, blank=True, null=True)
+    latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, blank=True, null=True
+    )
+    longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, blank=True, null=True
+    )
+    managers = models.ManyToManyField(User, related_name="managed_shops")
+    categories = models.ManyToManyField(ShopCategory, related_name="shops", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+# --- Worker Model ---
+class Worker(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    shop = models.ForeignKey(Shop, on_delete=models.CASCADE, related_name="workers")
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100, blank=True, null=True)
+    phone_number = models.CharField(
+        max_length=20, unique=True
+    )  # Used for worker identification/login
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["first_name", "last_name"]
+        unique_together = (
+            "shop",
+            "phone_number",
+        )  # A phone number should be unique per shop
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name or ''} ({self.shop.name})"
+
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name or ''}".strip()
+
+
+# --- Product Category Model (for Global Products) ---
+class Category(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "Product Categories"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+# --- Global Product Catalog Model ---
+class GlobalProduct(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True)
+    barcode = models.CharField(max_length=100, unique=True, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    image_url = models.URLField(max_length=500, blank=True, null=True)
+    suggested_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        related_name="global_products",
+        blank=True,
+        null=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+# --- Shop-Specific Product Model ---
+class Product(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    shop = models.ForeignKey(Shop, on_delete=models.CASCADE, related_name="products")
+    global_product = models.ForeignKey(
+        GlobalProduct,
+        on_delete=models.SET_NULL,
+        related_name="shop_products",
+        blank=True,
+        null=True,
+    )
+    name = models.CharField(
+        max_length=255
+    )  # Shop-specific name (can override global or be unique)
+    barcode = models.CharField(
+        max_length=100, blank=True, null=True
+    )  # Shop-specific barcode (can override global or be unique)
+    description = models.TextField(blank=True, null=True)
+    price = models.DecimalField(
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.00"))]
+    )  # Shop-specific selling price
+    quantity_type = models.CharField(
+        max_length=20, choices=QUANTITY_TYPE_CHOICES, default="UNIT"
+    )
+    image_url = models.URLField(max_length=500, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["shop", "name"]
+        unique_together = (
+            "shop",
+            "name",
+        )  # A product name must be unique within a given shop
+
+    def __str__(self):
+        return f"{self.name} ({self.shop.name})"
+
+    @property
+    def current_stock(self):
+        """
+        Calculates the current stock of the product in this specific shop.
+        """
+        total_received = self.stock_received.aggregate(Sum("quantity"))[
+            "quantity__sum"
+        ] or Decimal("0.000")
+        total_sold = self.sales.aggregate(Sum("quantity"))["quantity__sum"] or Decimal(
+            "0.000"
+        )
+        return total_received - total_sold
+
+
+# --- Stock Entry Model ---
+class StockEntry(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    shop = models.ForeignKey(
+        Shop, on_delete=models.CASCADE, related_name="stock_entries"
+    )
+    worker = models.ForeignKey(
+        Worker,
+        on_delete=models.SET_NULL,
+        related_name="stock_entries",
+        blank=True,
+        null=True,
+    )
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="stock_received"
+    )
+    quantity = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal("0.001"))],
+    )  # Allow decimals for weight/volume
+    purchase_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    notes = models.TextField(blank=True, null=True)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+    is_synced = models.BooleanField(default=False)  # For mobile app synchronization
+
+    class Meta:
+        verbose_name_plural = "Stock Entries"
+        ordering = ["-recorded_at"]
+
+    def __str__(self):
+        return f"Stock: {self.product.name} - {self.quantity} {self.product.quantity_type} in {self.shop.name}"
+
+
+# --- Sale Entry Model ---
+class SaleEntry(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    shop = models.ForeignKey(
+        Shop, on_delete=models.CASCADE, related_name="sale_entries"
+    )
+    worker = models.ForeignKey(
+        Worker,
+        on_delete=models.SET_NULL,
+        related_name="sale_entries",
+        blank=True,
+        null=True,
+    )
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="sales")
+    quantity = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal("0.001"))],
+    )
+    selling_price = models.DecimalField(
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0.00"))]
+    )
+    notes = models.TextField(blank=True, null=True)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+    is_synced = models.BooleanField(default=False)  # For mobile app synchronization
+
+    class Meta:
+        verbose_name_plural = "Sale Entries"
+        ordering = ["-recorded_at"]
+
+    def __str__(self):
+        return f"Sale: {self.product.name} - {self.quantity} {self.product.quantity_type} for {self.selling_price} in {self.shop.name}"
+
+
+# --- Missed Sale Entry Model ---
+class MissedSaleEntry(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    shop = models.ForeignKey(
+        Shop, on_delete=models.CASCADE, related_name="missed_sale_entries"
+    )
+    worker = models.ForeignKey(
+        Worker,
+        on_delete=models.SET_NULL,
+        related_name="missed_sale_entries",
+        blank=True,
+        null=True,
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.SET_NULL,
+        related_name="missed_sales_linked",
+        blank=True,
+        null=True,
+    )  # Link to existing product if applicable
+    product_name_text = models.CharField(
+        max_length=255, blank=True, null=True
+    )  # For free-text entry if product not found
+    quantity_requested = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        validators=[MinValueValidator(Decimal("0.001"))],
+    )
+    reason = models.TextField(
+        blank=True, null=True
+    )  # E.g., "Out of stock", "Not carried"
+    notes = models.TextField(blank=True, null=True)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+    is_synced = models.BooleanField(default=False)  # For mobile app synchronization
+
+    class Meta:
+        verbose_name_plural = "Missed Sale Entries"
+        ordering = ["-recorded_at"]
+        # Add a check to ensure either product or product_name_text is provided
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(product__isnull=False)
+                | models.Q(product_name_text__isnull=False),
+                name="product_or_product_name_text_required",
+            )
+        ]
+
+    def __str__(self):
+        product_info = self.product.name if self.product else self.product_name_text
+        return f"Missed Sale: {product_info} - {self.quantity_requested} in {self.shop.name} ({self.reason})"
