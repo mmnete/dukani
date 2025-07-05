@@ -1,0 +1,65 @@
+# .gitignore for Dukani Monorepo (Django, React Native, Flutter)
+
+# --- General Ignores ---
+.DS_Store
+.env
+.env.*local
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+.idea/
+.vscode/
+*.swp
+*.bak
+*.swo
+
+# --- Django Backend Specific Ignores (/backend/) ---
+/backend/__pycache__/
+/backend/*.pyc
+/backend/db.sqlite3
+/backend/media/
+/backend/static/
+/backend/venv/
+/backend/.pytest_cache/
+/backend/.coverage
+/backend/htmlcov/
+/backend/celerybeat-schedule*
+/backend/celeryd.pid
+/backend/logs/
+
+# --- React Native Mobile App Specific Ignores (/mobile_app/) ---
+/mobile_app/node_modules/
+/mobile_app/.expo/
+/mobile_app/.expo-shared/
+/mobile_app/web-build/
+/mobile_app/dist/
+/mobile_app/build/
+/mobile_app/android/
+/mobile_app/ios/
+/mobile_app/app.json.bak
+/mobile_app/.yarn/
+
+# --- Flutter Mobile App Specific Ignores (/mobile_app/flutter/) ---
+/mobile_app/flutter/.dart_tool/
+/mobile_app/flutter/.flutter-plugins
+/mobile_app/flutter/.flutter-plugins-dependencies
+/mobile_app/flutter/.packages
+/mobile_app/flutter/build/
+/mobile_app/flutter/ios/.symlinks/
+/mobile_app/flutter/android/.gradle/
+/mobile_app/flutter/android/app/build/
+/mobile_app/flutter/android/local.properties
+/mobile_app/flutter/ios/Flutter/.last_customize_inputs
+/mobile_app/flutter/ios/Pods/
+/mobile_app/flutter/ios/.bundle/
+/mobile_app/flutter/ios/Flutter/Generated.xcconfig
+/mobile_app/flutter/ios/Flutter/flutter_export_environment.sh
+/mobile_app/flutter/ios/Flutter/Flutter.framework/
+/mobile_app/flutter/ios/Flutter/App.framework/
+/mobile_app/flutter/ios/Flutter/flutter_assets/
+/mobile_app/flutter/ios/Runner.xcworkspace/
+/mobile_app/flutter/ios/Runner.xcodeproj/project.xcworkspace/
+/mobile_app/flutter/ios/Runner.xcodeproj/xcuserdata/
+/mobile_app/flutter/ios/.generated/
+/mobile_app/flutter/ios/Flutter.podspec
+/mobile_app/flutter/pubspec.lock # Often ignored, but sometimes useful to commit for strict dependency control

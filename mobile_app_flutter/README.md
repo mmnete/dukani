@@ -1,16 +1,38 @@
-# mobile_app_flutter
+Dukani Mobile App (Flutter)
+This directory contains a placeholder for a potential Flutter-based mobile application for Dukani. It's set up as a standard Flutter project.
 
-A new Flutter project.
+🚀 How to Launch
+Prerequisites:
+Flutter SDK installed and configured.
 
-## Getting Started
+Android Studio (with Flutter/Dart plugins) or VS Code (with Flutter extension) for development.
 
-This project is a starting point for a Flutter application.
+An Android emulator, iOS simulator (macOS only), or a physical device connected and set up for development.
 
-A few resources to get you started if this is your first Flutter project:
+Steps:
+Navigate to the flutter directory:
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+cd path/to/your/dukani/mobile_app/flutter
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Get Flutter dependencies:
+
+flutter pub get
+
+Ensure your development environment is set up:
+
+flutter doctor
+
+Address any issues reported by flutter doctor.
+
+Launch the application:
+
+Via IDE: Open the flutter project in Android Studio or VS Code and click the "Run" button.
+
+Via Command Line:
+
+flutter run
+
+This will launch the app on your connected device or a running emulator/simulator.
+
+🧪 How to Run Unit Tests
+Unit tests for the Flutter application are not yet set up in this MVP.
