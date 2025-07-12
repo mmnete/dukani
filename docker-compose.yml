@@ -2,20 +2,22 @@ version: '3.8'
 
 services:
   db:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     environment:
-      POSTGRES_DB: dukanidb_local
-      POSTGRES_USER: dukani_user
-      POSTGRES_PASSWORD: dukani_password
+      POSTGRES_DB: dukanidb
+      POSTGRES_USER: dukaniuser
+      POSTGRES_PASSWORD: dukanipassword
     ports:
-      - "5432:5432"
+      - "5432:5432" # Expose PostgreSQL port for local access if needed
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: ./backend # Use the specified context
+      dockerfile: Dockerfile # Use the specified Dockerfile
+    # Command to migrate, then run the server
+    # Removed 'python wait_for_db.py &&' as requested
     command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./backend:/app/backend
@@ -23,30 +25,41 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DJANGO_SECRET_KEY: your_super_secret_key_for_dev
+      # Django settings module
+      # DJANGO_SETTINGS_MODULE: dukani.settings
+      # Database environment variables (read by settings.py)
+      POSTGRES_DB: dukanidb
+      POSTGRES_USER: dukaniuser
+      POSTGRES_PASSWORD: dukanipassword
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      # MinIO/S3 Environment Variables for Django (read by settings.py)
+      AWS_ACCESS_KEY_ID: minioadmin # Default MinIO access key
+      AWS_SECRET_ACCESS_KEY: minioadmin # Default MinIO secret key
+      AWS_STORAGE_BUCKET_NAME: dukanibucket # Your desired bucket name
+      AWS_S3_ENDPOINT_URL: http://minio:9000 # MinIO service name and port
+      AWS_S3_USE_SSL: "False" # Use http for local MinIO
+      AWS_DEFAULT_ACL: public-read # Or private, depending on your needs
+      # Django Debug setting (read by settings.py)
       DJANGO_DEBUG: "True"
-      DATABASE_URL: postgres://dukani_user:dukani_password@db:5432/dukanidb_local
+      # Django Secret Key (read by settings.py)
+      DJANGO_SECRET_KEY: your_super_secret_key_for_dev # IMPORTANT: Change this for production!
     depends_on:
       - db
+      - minio # Backend now depends on MinIO
 
-  # --- New/Modified Frontend Service for Development ---
-  frontend:
-    build:
-      context: ./web_app # Path to your React web_app Dockerfile (same as before)
-      dockerfile: Dockerfile_dev # <--- We'll create a separate Dockerfile for development
-    command: npm start # This runs the React development server
-    volumes:
-      - ./web_app:/app/web_app # Mount your local React code for hot-reloading
-      - /app/web_app/node_modules # Exclude node_modules from host mount to avoid issues
+  minio:
+    image: minio/minio
     ports:
-      - "3000:3000" # React dev server runs on 3000
+      - "9000:9000" # MinIO API port
+      - "9001:9001" # MinIO Console port
+    volumes:
+      - minio_data:/data # Persistent storage for MinIO data
     environment:
-      # If your React app needs to call the backend, it should point to http://localhost:8000
-      # or http://backend:8000 if calling from inside the frontend container
-      # For local dev, usually you'd configure a proxy in your React app or use localhost.
-      REACT_APP_BACKEND_URL: http://localhost:8000 # Example env var for React app
-    depends_on:
-      - backend # Frontend depends on backend for API calls (optional, but good practice)
+      MINIO_ROOT_USER: minioadmin # Default user
+      MINIO_ROOT_PASSWORD: minioadmin # Default password
+    command: server /data --console-address ":9001"
 
 volumes:
   postgres_data:
+  minio_data: # Define the volume for MinIO data

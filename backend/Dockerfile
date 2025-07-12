@@ -1,41 +1,37 @@
-# Use an official Python runtime as a parent image
-# Option 1: Most current stable Debian for 3.12
+# dukani/backend/Dockerfile
 FROM python:3.12-slim-bookworm
 
-# OR Option 2: A slightly older but still very common and stable Debian for 3.12
-# FROM python:3.12-slim-bullseye
-
-# OR Option 3: The generic "slim" tag, which currently points to bookworm
-# FROM python:3.12-slim
-
-# Set environment variables for non-interactive installs
+# Set environment variables for non-interactive installs and Python behavior
 ENV PYTHONUNBUFFERED 1
 ENV PYTHONDONTWRITEBYTECODE 1
 
-# Set the working directory in the container
+# Set the working directory inside the container.
+# This is crucial for Django to find manage.py and your project modules.
+# Since your local 'backend' directory is mounted to '/app/backend' by docker-compose,
+# and 'manage.py' and the 'dukani' project folder are directly inside 'backend',
+# the WORKDIR should be '/app/backend'.
 WORKDIR /app/backend
 
-# Install system dependencies
+# Install system dependencies required for database client and Python packages like psycopg2 and Pillow
 RUN apt-get update && apt-get install -y \
     postgresql-client \
     gcc \
-    # Add any other system dependencies needed for psycopg2 or other packages if they fail
-    # For example: libpq-dev (if psycopg2-binary has issues, though it's usually self-contained)
-    # libjpeg-dev zlib1g-dev (for Pillow if you handle image processing directly)
+    libpq-dev \
+    libjpeg-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the requirements file into the working directory
+# Copy requirements.txt and install dependencies
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of your application code to the container
+# Copy the rest of your backend application code into the working directory
+# This will copy 'manage.py', 'dukani/' (your project), 'api/', etc., into /app/backend
 COPY . .
 
-# Expose port 8000
+# Expose the port Django will run on
 EXPOSE 8000
 
 # Command to run the application (Gunicorn for production-like server)
-# In development, we'll override this with manage.py runserver via docker-compose
-CMD ["gunicorn", "dukani_backend.wsgi:application", "--bind", "0.0.0.0:8000"]
+# In development, this will be overridden by docker-compose.yml to run manage.py runserver
+CMD ["gunicorn", "dukani.wsgi:application", "--bind", "0.0.0.0:8000"]

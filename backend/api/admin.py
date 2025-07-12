@@ -83,7 +83,7 @@ class GlobalProductAdmin(admin.ModelAdmin):
     readonly_fields = ('id', 'created_at', 'updated_at')
     fieldsets = (
         (None, {
-            'fields': ('name', 'barcode', 'description', 'suggested_price', 'category', 'image_url')
+            'fields': ('name', 'barcode', 'description', 'suggested_price', 'category', 'image') # CHANGED from image_url
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

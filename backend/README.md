@@ -54,3 +54,12 @@ Execute the tests within the Docker container:
 docker-compose exec backend python manage.py test api
 
 This command runs all tests within the api Django app.
+
+
+Another way you can build is: 
+docker-compose down
+docker-compose build backend
+docker-compose up -d
+
+then to run tests
+docker-compose exec backend python manage.py test api

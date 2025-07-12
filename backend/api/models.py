@@ -4,7 +4,7 @@ import uuid
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator
-from django.db.models import Sum  # <--- ADDED THIS IMPORT for current_stock property
+from django.db.models import Sum
 from decimal import Decimal
 
 # --- Choices for quantity_type ---
@@ -12,6 +12,35 @@ QUANTITY_TYPE_CHOICES = [
     ("UNIT", "Unit(s)"),
     ("WEIGHT_VOLUME", "Weight/Volume (e.g., Kg, Liters)"),
 ]
+UNIT = "UNIT"  # Constant for 'Unit' quantity type
+WEIGHT_VOLUME = "WEIGHT_VOLUME"
+
+# --- Choices for quality_type (NEW) ---
+QUALITY_TYPE_CHOICES = [
+    ("GENUINE", "Genuine"),
+    ("USED", "Used"),
+    ("FAKE", "Fake/Aftermarket"),
+    ("REFURBISHED", "Refurbished"),
+]
+GENUINE = "GENUINE"
+USED = "USED"
+FAKE = "FAKE"
+REFURBISHED = "REFURBISHED"
+
+# --- Choices for product status (NEW) ---
+PRODUCT_STATUS_CHOICES = [
+    ("PENDING_REVIEW", "Pending Review"),  # Newly added product, needs manager review
+    ("REVIEWED", "Reviewed"),  # Manager has reviewed and approved
+    (
+        "LINKED",
+        "Linked to Global Product",
+    ),  # Automatically set if linked to GlobalProduct
+    ("ARCHIVED", "Archived"),  # Product is no longer active
+]
+PENDING_REVIEW = "PENDING_REVIEW"
+REVIEWED = "REVIEWED"
+LINKED = "LINKED"
+ARCHIVED = "ARCHIVED"
 
 
 # --- Shop Category Model ---
@@ -44,6 +73,7 @@ class Shop(models.Model):
     )
     managers = models.ManyToManyField(User, related_name="managed_shops")
     categories = models.ManyToManyField(ShopCategory, related_name="shops", blank=True)
+    require_image_upload = models.BooleanField(default=False)  # NEW FIELD
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -60,9 +90,7 @@ class Worker(models.Model):
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE, related_name="workers")
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100, blank=True, null=True)
-    phone_number = models.CharField(
-        max_length=20, unique=True
-    )  # Used for worker identification/login
+    phone_number = models.CharField(max_length=30)  # Used for worker identification/login
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -104,7 +132,9 @@ class GlobalProduct(models.Model):
     name = models.CharField(max_length=255, unique=True)
     barcode = models.CharField(max_length=100, unique=True, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
-    image_url = models.URLField(max_length=500, blank=True, null=True)
+    image = models.ImageField(
+        upload_to="global_product_images/", blank=True, null=True
+    )  # CHANGED from image_url
     suggested_price = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -153,7 +183,15 @@ class Product(models.Model):
     quantity_type = models.CharField(
         max_length=20, choices=QUANTITY_TYPE_CHOICES, default="UNIT"
     )
-    image_url = models.URLField(max_length=500, blank=True, null=True)
+    quality_type = models.CharField(
+        max_length=20, choices=QUALITY_TYPE_CHOICES, blank=True, null=True
+    )  # NEW FIELD
+    status = models.CharField(
+        max_length=20, choices=PRODUCT_STATUS_CHOICES, default=PENDING_REVIEW
+    )  # NEW FIELD
+    image = models.ImageField(
+        upload_to="shop_product_images/", blank=True, null=True
+    )  # CHANGED from image_url
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -233,7 +271,7 @@ class SaleEntry(models.Model):
         related_name="sale_entries",
         blank=True,
         null=True,
-    )
+    )  # CORRECTED: on_on_delete to on_delete
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="sales")
     quantity = models.DecimalField(
         max_digits=10,

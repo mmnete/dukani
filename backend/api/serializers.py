@@ -2,10 +2,12 @@
 
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from decimal import Decimal  # Import Decimal for comparisons
+from decimal import Decimal
 from django.db import transaction
 from django.db.utils import IntegrityError
-from django.db.models import F  # Import F object for database expressions
+from django.db.models import F
+from django.core.files.uploadedfile import InMemoryUploadedFile  # For image handling
+import imghdr  # To validate image type
 
 from .models import (
     Shop,
@@ -18,6 +20,11 @@ from .models import (
     MissedSaleEntry,
     ShopCategory,
     QUANTITY_TYPE_CHOICES,
+    QUALITY_TYPE_CHOICES,
+    PRODUCT_STATUS_CHOICES,
+    UNIT,
+    PENDING_REVIEW,
+    LINKED,
 )
 
 
@@ -33,25 +40,17 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "username", "email", "first_name", "last_name"]
-        read_only_fields = [
-            "username",
-            "email",
-        ]  # Prevent direct modification via shop serializer
+        read_only_fields = ["username", "email"]
 
 
 # --- Shop Serializer ---
 class ShopSerializer(serializers.ModelSerializer):
     managers = serializers.PrimaryKeyRelatedField(
-        many=True,
-        queryset=User.objects.all(),
-        required=False,  # Managers can be added after shop creation
+        many=True, queryset=User.objects.all(), required=False
     )
     categories = serializers.PrimaryKeyRelatedField(
-        many=True,
-        queryset=ShopCategory.objects.all(),
-        required=False,  # Categories can be added after shop creation
+        many=True, queryset=ShopCategory.objects.all(), required=False
     )
-    # Read-only fields to display names instead of UUIDs
     manager_usernames = serializers.SerializerMethodField()
     category_names = serializers.SerializerMethodField()
 
@@ -68,6 +67,7 @@ class ShopSerializer(serializers.ModelSerializer):
             "categories",
             "manager_usernames",
             "category_names",
+            "require_image_upload",
             "created_at",
             "updated_at",
         ]
@@ -104,7 +104,7 @@ class ShopSerializer(serializers.ModelSerializer):
 class WorkerSerializer(serializers.ModelSerializer):
     shop = serializers.PrimaryKeyRelatedField(queryset=Shop.objects.all())
     shop_name = serializers.CharField(source="shop.name", read_only=True)
-    full_name = serializers.CharField(read_only=True)  # From Worker model property
+    full_name = serializers.CharField(read_only=True)
 
     class Meta:
         model = Worker
@@ -123,8 +123,7 @@ class WorkerSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at", "updated_at"]
 
     def validate(self, data):
-        # Ensure that a worker's phone number is unique within their shop
-        if self.instance:  # If updating an existing worker
+        if self.instance:
             if (
                 Worker.objects.filter(
                     shop=data["shop"], phone_number=data["phone_number"]
@@ -135,7 +134,7 @@ class WorkerSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     "A worker with this phone number already exists in this shop."
                 )
-        else:  # If creating a new worker
+        else:
             if Worker.objects.filter(
                 shop=data["shop"], phone_number=data["phone_number"]
             ).exists():
@@ -158,6 +157,9 @@ class GlobalProductSerializer(serializers.ModelSerializer):
         queryset=Category.objects.all(), allow_null=True, required=False
     )
     category_name = serializers.CharField(source="category.name", read_only=True)
+    image = serializers.ImageField(
+        required=False, allow_null=True, use_url=False
+    )  # REMOVED THIS LINE
 
     class Meta:
         model = GlobalProduct
@@ -166,7 +168,7 @@ class GlobalProductSerializer(serializers.ModelSerializer):
             "name",
             "barcode",
             "description",
-            "image_url",
+            "image",
             "suggested_price",
             "category",
             "category_name",
@@ -181,21 +183,30 @@ class ProductSerializer(serializers.ModelSerializer):
     shop = serializers.PrimaryKeyRelatedField(queryset=Shop.objects.all())
     shop_name = serializers.CharField(source="shop.name", read_only=True)
 
-    # This field is for writing (input) the global product ID
     global_product_id = serializers.PrimaryKeyRelatedField(
         queryset=GlobalProduct.objects.all(),
-        write_only=True,  # This field is only for input
+        write_only=True,
         required=False,
         allow_null=True,
     )
 
-    # These fields are for reading (output) information about the linked global product
     global_product_name = serializers.CharField(
         source="global_product.name", read_only=True
     )
     global_product_category_name = serializers.CharField(
         source="global_product.category.name", read_only=True
     )
+
+    # New fields for Product
+    image = serializers.ImageField(
+        required=False, allow_null=True, use_url=False
+    )  # REMOVED THIS LINE
+    quality_type = serializers.ChoiceField(
+        choices=QUALITY_TYPE_CHOICES, required=False, allow_blank=True, allow_null=True
+    )
+    status = serializers.ChoiceField(
+        choices=PRODUCT_STATUS_CHOICES, read_only=False
+    )  # Status is set internally
 
     # Fields for creating a new GlobalProduct on the fly
     new_global_product_name = serializers.CharField(
@@ -227,7 +238,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "id",
             "shop",
             "shop_name",
-            "global_product",  # This will be read-only by default as it's a ForeignKey
+            "global_product",
             "global_product_id",
             "global_product_name",
             "global_product_category_name",
@@ -236,7 +247,9 @@ class ProductSerializer(serializers.ModelSerializer):
             "description",
             "price",
             "quantity_type",
-            "image_url",
+            "quality_type",
+            "image",
+            "status",
             "created_at",
             "updated_at",
             "new_global_product_name",
@@ -246,8 +259,6 @@ class ProductSerializer(serializers.ModelSerializer):
             "new_global_product_category_id",
         ]
         read_only_fields = ["created_at", "updated_at"]
-        # No need for extra_kwargs for global_product as it's handled by its nature as a ForeignKey
-        # and the explicit global_product_id for writing.
 
     def validate(self, data):
         global_product_id = data.get("global_product_id")
@@ -255,22 +266,16 @@ class ProductSerializer(serializers.ModelSerializer):
         new_global_product_suggested_price = data.get(
             "new_global_product_suggested_price"
         )
-        new_global_product_category_id = data.get("new_global_product_category_id")
 
-        # Rule 1: Cannot provide both existing global_product_id and new global product info
         if global_product_id and new_global_product_name:
             raise serializers.ValidationError(
                 "Cannot provide both an existing 'global_product_id' and 'new_global_product_name'."
             )
 
-        # Rule 2: If creating a new global product, name and suggested_price are required
         if new_global_product_name and not new_global_product_suggested_price:
             raise serializers.ValidationError(
                 "Suggested price is required for new global products."
             )
-
-        # Removed custom validation for 'shop' and 'name' uniqueness
-        # Django's UniqueTogetherValidator will handle this if configured in the model.
 
         return data
 
@@ -296,7 +301,6 @@ class ProductSerializer(serializers.ModelSerializer):
         if global_product_id:
             global_product_instance = global_product_id
         elif new_global_product_name:
-            # Create a new GlobalProduct
             global_product_instance = GlobalProduct.objects.create(
                 name=new_global_product_name,
                 barcode=new_global_product_barcode,
@@ -304,6 +308,9 @@ class ProductSerializer(serializers.ModelSerializer):
                 suggested_price=new_global_product_suggested_price,
                 category=new_global_product_category_id,
             )
+
+        # Set initial status for new products
+        validated_data["status"] = LINKED if global_product_instance else PENDING_REVIEW
 
         product = Product.objects.create(
             global_product=global_product_instance, **validated_data
@@ -329,8 +336,8 @@ class ProductSerializer(serializers.ModelSerializer):
 
         if global_product_id:
             instance.global_product = global_product_id
+            instance.status = LINKED  # Update status if linked
         elif new_global_product_name:
-            # Create a new GlobalProduct and link it
             new_global_product_instance = GlobalProduct.objects.create(
                 name=new_global_product_name,
                 barcode=new_global_product_barcode,
@@ -339,13 +346,20 @@ class ProductSerializer(serializers.ModelSerializer):
                 category=new_global_product_category_id,
             )
             instance.global_product = new_global_product_instance
+            instance.status = (
+                LINKED  # Update status if new global product is created and linked
+            )
         elif (
             "global_product_id" in self.initial_data
             and not global_product_id
             and not new_global_product_name
         ):
-            # If global_product_id was explicitly sent as null, set it to null
             instance.global_product = None
+            instance.status = PENDING_REVIEW  # Set to pending review if unlinked
+
+        # Update status if explicitly provided (e.g., manager changing from PENDING_REVIEW to REVIEWED)
+        if "status" in validated_data:
+            instance.status = validated_data.pop("status")
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -358,7 +372,43 @@ class ProductSerializer(serializers.ModelSerializer):
 class StockEntrySerializer(serializers.ModelSerializer):
     shop = serializers.PrimaryKeyRelatedField(queryset=Shop.objects.all())
     worker = serializers.PrimaryKeyRelatedField(queryset=Worker.objects.all())
-    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
+
+    # Existing product ID (optional if creating new product on the fly)
+    product = serializers.PrimaryKeyRelatedField(
+        queryset=Product.objects.all(), required=False, allow_null=True
+    )
+
+    # Fields for creating a new product on the fly via stock entry
+    product_name_text = serializers.CharField(
+        max_length=255,
+        required=False,
+        allow_blank=True,
+        help_text="Provide product name if product ID is not known or for new items.",
+    )
+    barcode_text = serializers.CharField(
+        max_length=255,
+        required=False,
+        allow_blank=True,
+        help_text="Provide barcode if scanning a new item.",
+    )
+    product_quantity_type = serializers.ChoiceField(
+        choices=QUANTITY_TYPE_CHOICES,
+        required=False,
+        help_text="Quantity type for new product (UNIT, WEIGHT_VOLUME).",
+    )
+    product_quality_type = serializers.ChoiceField(
+        choices=QUALITY_TYPE_CHOICES,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        help_text="Quality type for new product (Genuine, Used, Fake, etc.).",
+    )
+    image_file = serializers.ImageField(
+        required=False,
+        allow_null=True,
+        write_only=True,  # This field is only for upload, not for reading back
+        help_text="Image file for a new product, if required by shop settings.",
+    )
 
     class Meta:
         model = StockEntry
@@ -367,6 +417,11 @@ class StockEntrySerializer(serializers.ModelSerializer):
             "shop",
             "worker",
             "product",
+            "product_name_text",
+            "barcode_text",
+            "product_quantity_type",
+            "product_quality_type",
+            "image_file",
             "quantity",
             "purchase_price",
             "notes",
@@ -375,34 +430,149 @@ class StockEntrySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["recorded_at", "is_synced"]
 
+    def validate_image_file(self, value):
+        if value:
+            # Basic check to ensure it's an image
+            if not isinstance(value, InMemoryUploadedFile):
+                raise serializers.ValidationError("Invalid image file format.")
+
+            # Read a small chunk to determine image type
+            file_start = value.read(1024)
+            value.seek(0)  # Reset file pointer
+
+            img_type = imghdr.what(None, file_start)
+            if img_type not in [
+                "jpeg",
+                "png",
+                "gif",
+                "bmp",
+                "tiff",
+            ]:  # Common image types
+                raise serializers.ValidationError(
+                    "Uploaded file is not a recognized image type."
+                )
+        return value
+
     def validate(self, data):
-        product = data["product"]
+        product = data.get("product")
+        product_name_text = data.get("product_name_text")
+        barcode_text = data.get("barcode_text")
         quantity = data["quantity"]
         shop = data["shop"]
         worker = data["worker"]
+        image_file = data.get("image_file")
 
-        # Validate that the worker belongs to the specified shop
+        # Validate worker belongs to shop
         if worker.shop != shop:
             raise serializers.ValidationError(
                 {"worker": "Worker is not assigned to the specified shop."}
             )
 
-        # Validate that the product belongs to the specified shop
-        if product.shop != shop:
+        # Validate product relationship to shop
+        if product and product.shop != shop:
             raise serializers.ValidationError(
                 {"product": "Product is not assigned to the specified shop."}
             )
 
-        # Validate quantity based on product type
-        if product.quantity_type == "UNIT":
-            # Check if quantity has a fractional part for UNIT type
-            if quantity % 1 != 0:  # Correct way to check if Decimal is a whole number
+        # Ensure either product ID OR (product_name_text or barcode_text) is provided
+        if product and (product_name_text or barcode_text):
+            raise serializers.ValidationError(
+                "Cannot provide both an existing 'product' ID and new product details ('product_name_text' or 'barcode_text')."
+            )
+        if not product and not (product_name_text or barcode_text):
+            raise serializers.ValidationError(
+                "Either 'product' ID or new product details ('product_name_text' or 'barcode_text') must be provided."
+            )
+
+        # If creating a new product, name is mandatory
+        if not product and not product_name_text:
+            raise serializers.ValidationError(
+                {
+                    "product_name_text": "Product name is required when creating a new product."
+                }
+            )
+
+        # Check if image upload is required by the shop
+        if shop.require_image_upload and not product and not image_file:
+            raise serializers.ValidationError(
+                {
+                    "image_file": "Image upload is required for new products in this shop."
+                }
+            )
+
+        # Determine the product's quantity_type for validation
+        target_product_type = None
+        if product:
+            target_product_type = product.quantity_type
+        elif "product_quantity_type" in data:
+            target_product_type = data["product_quantity_type"]
+        else:
+            target_product_type = UNIT  # Default for new products if not specified
+
+        if target_product_type == UNIT:
+            if quantity % 1 != 0:
                 raise serializers.ValidationError(
                     {
-                        "quantity": "Quantity must be a whole number for 'UNIT' type products."
+                        "quantity": f"Quantity must be a whole number for '{UNIT}' type products."
                     }
                 )
+
         return data
+
+    @transaction.atomic
+    def create(self, validated_data):
+        product_instance = validated_data.get("product")
+        product_name_text = validated_data.pop("product_name_text", None)
+        barcode_text = validated_data.pop("barcode_text", None)
+        product_quantity_type = validated_data.pop(
+            "product_quantity_type", UNIT
+        )  # Default to UNIT
+        product_quality_type = validated_data.pop("product_quality_type", None)
+        image_file = validated_data.pop("image_file", None)
+        shop = validated_data["shop"]
+
+        if not product_instance:  # If no existing product ID was provided
+            # Try to find an existing Product in THIS shop by name or barcode
+            if product_name_text:  # Prioritize name search
+                try:
+                    product_instance = Product.objects.get(
+                        shop=shop, name=product_name_text
+                    )
+                except Product.DoesNotExist:
+                    pass
+
+            if (
+                not product_instance and barcode_text
+            ):  # Then try barcode search if name didn't yield
+                try:
+                    product_instance = Product.objects.get(
+                        shop=shop, barcode=barcode_text
+                    )
+                except Product.DoesNotExist:
+                    pass
+
+            if (
+                not product_instance
+            ):  # If still no product found, create a new one for this shop
+                new_product_data = {
+                    "shop": shop,
+                    "name": product_name_text,
+                    "barcode": barcode_text,
+                    "quantity_type": product_quantity_type,
+                    "quality_type": product_quality_type,
+                    "price": validated_data.get(
+                        "purchase_price", Decimal("0.00")
+                    ),  # Use purchase price as initial selling price
+                    "image": image_file,  # Assign the uploaded image
+                    "global_product": None,  # No global product linked initially
+                    "status": PENDING_REVIEW,  # Mark for manager review
+                }
+                product_instance = Product.objects.create(**new_product_data)
+
+        # Assign the found/created product instance to the validated data for StockEntry
+        validated_data["product"] = product_instance
+        stock_entry = StockEntry.objects.create(**validated_data)
+        return stock_entry
 
 
 # --- SaleEntry Serializer ---
@@ -445,12 +615,11 @@ class SaleEntrySerializer(serializers.ModelSerializer):
             )
 
         # Validate quantity based on product type
-        if product.quantity_type == "UNIT":
-            # Check if quantity has a fractional part for UNIT type
-            if quantity % 1 != 0:  # Correct way to check if Decimal is a whole number
+        if product.quantity_type == UNIT:
+            if quantity % 1 != 0:
                 raise serializers.ValidationError(
                     {
-                        "quantity": "Quantity must be a whole number for 'UNIT' type products."
+                        "quantity": f"Quantity must be a whole number for '{UNIT}' type products."
                     }
                 )
         return data
@@ -468,7 +637,6 @@ class SaleEntrySerializer(serializers.ModelSerializer):
                 }
             )
 
-        # Create the sale entry
         sale_entry = SaleEntry.objects.create(**validated_data)
         return sale_entry
 
@@ -477,6 +645,7 @@ class SaleEntrySerializer(serializers.ModelSerializer):
 class MissedSaleEntrySerializer(serializers.ModelSerializer):
     shop = serializers.PrimaryKeyRelatedField(queryset=Shop.objects.all())
     worker = serializers.PrimaryKeyRelatedField(queryset=Worker.objects.all())
+
     product = serializers.PrimaryKeyRelatedField(
         queryset=Product.objects.all(), required=False, allow_null=True
     )
@@ -507,13 +676,11 @@ class MissedSaleEntrySerializer(serializers.ModelSerializer):
         shop = data["shop"]
         worker = data["worker"]
 
-        # Validate that the worker belongs to the specified shop
         if worker.shop != shop:
             raise serializers.ValidationError(
                 {"worker": "Worker is not assigned to the specified shop."}
             )
 
-        # Ensure either product or product_name_text is provided, but not both
         if not product and not product_name_text:
             raise serializers.ValidationError(
                 "Either 'product' or 'product_name_text' must be provided."
@@ -523,28 +690,152 @@ class MissedSaleEntrySerializer(serializers.ModelSerializer):
                 "Cannot provide both 'product' and 'product_name_text'. Choose one."
             )
 
-        # If a product is linked, validate it belongs to the specified shop
         if product and product.shop != shop:
             raise serializers.ValidationError(
                 {"product": "Product is not assigned to the specified shop."}
             )
 
-        # If a product is linked and is of type 'UNIT', validate quantity is a whole number
-        if product and product.quantity_type == "UNIT":
-            if (
-                quantity_requested % 1 != 0
-            ):  # Correct way to check if Decimal is a whole number
+        # Quantity validation for missed sales:
+        # If product is linked, use its quantity_type.
+        # If not linked (text-based), assume UNIT for validation.
+        target_quantity_type = product.quantity_type if product else UNIT
+
+        if target_quantity_type == UNIT:
+            if quantity_requested % 1 != 0:
                 raise serializers.ValidationError(
                     {
-                        "quantity_requested": "Quantity must be a whole number for 'UNIT' type products."
+                        "quantity_requested": f"Quantity must be a whole number for '{UNIT}' type products."
                     }
                 )
-        # If no product is linked (i.e., product_name_text is used), assume UNIT type and validate quantity is a whole number
-        elif not product and quantity_requested % 1 != 0:
+
+        return data
+
+
+class StockEntryCreateUpdateSerializer(serializers.Serializer):
+    # Fields for existing product
+    shop = serializers.PrimaryKeyRelatedField(queryset=Shop.objects.all())
+    worker = serializers.PrimaryKeyRelatedField(queryset=Worker.objects.all())
+    product = serializers.PrimaryKeyRelatedField(
+        queryset=Product.objects.all(), required=False, allow_null=True
+    )
+
+    # Fields for creating new product on the fly
+    product_name_text = serializers.CharField(
+        max_length=255, required=False, allow_blank=True
+    )
+    barcode_text = serializers.CharField(
+        max_length=50, required=False, allow_blank=True
+    )
+    description_text = serializers.CharField(
+        max_length=255, required=False, allow_blank=True
+    )  # For new product description
+    price = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False, allow_null=True
+    )  # Price for new product
+    image_file = serializers.ImageField(required=False, allow_null=True)
+
+    # Common fields for stock entry
+    quantity = serializers.DecimalField(max_digits=10, decimal_places=3)
+    purchase_price = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False, allow_null=True
+    )
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, data):
+        product = data.get("product")
+        product_name_text = data.get("product_name_text")
+
+        if not product and not product_name_text:
             raise serializers.ValidationError(
-                {
-                    "quantity_requested": "Quantity must be a whole number for products not linked to a specific type."
-                }
+                "Either 'product' ID or 'product_name_text' must be provided."
+            )
+        if product and product_name_text:
+            raise serializers.ValidationError(
+                "Provide either 'product' ID or 'product_name_text', not both."
+            )
+
+        if product:
+            # If an existing product is selected, ensure it belongs to the specified shop
+            if product.shop != data["shop"]:
+                raise serializers.ValidationError(
+                    {
+                        "product": "The selected product does not belong to the specified shop."
+                    }
+                )
+            # If quantity type is UNIT, ensure quantity is a whole number
+            if product.quantity_type == UNIT and data["quantity"] % 1 != 0:
+                raise serializers.ValidationError(
+                    {
+                        "quantity": "Quantity must be a whole number for unit-based products."
+                    }
+                )
+        elif product_name_text:
+            # If creating a new product, ensure price is provided if not explicitly null
+            if data.get("price") is None:
+                raise serializers.ValidationError(
+                    {"price": "Price is required for new products."}
+                )
+            # Ensure quantity is a whole number for new UNIT products (default UNIT)
+            if data["quantity"] % 1 != 0:  # Assuming new products default to UNIT
+                raise serializers.ValidationError(
+                    {
+                        "quantity": "Quantity must be a whole number for new unit-based products."
+                    }
+                )
+
+        if data["quantity"] <= 0:
+            raise serializers.ValidationError(
+                {"quantity": "Quantity must be greater than 0."}
+            )
+        if data.get("purchase_price") is not None and data["purchase_price"] <= 0:
+            raise serializers.ValidationError(
+                {"purchase_price": "Purchase price must be greater than 0."}
             )
 
         return data
+
+    def create(self, validated_data):
+        # Extract fields related to new product creation
+        shop = validated_data.pop("shop")
+        worker = validated_data.pop("worker")
+        product = validated_data.pop(
+            "product", None
+        )  # Pop product, might be None for new product
+        product_name_text = validated_data.pop("product_name_text", None)
+        barcode_text = validated_data.pop("barcode_text", None)
+        description_text = validated_data.pop("description_text", None)
+        price = validated_data.pop("price", None)
+        image_file = validated_data.pop("image_file", None)
+
+        if product_name_text and not product:
+            # Create a new Product instance if product_name_text is provided and no existing product is linked
+            product = Product.objects.create(
+                shop=shop,
+                name=product_name_text,
+                barcode=barcode_text,
+                description=description_text,
+                price=(
+                    price if price is not None else Decimal("0.00")
+                ),  # Use provided price or default
+                quantity_type=UNIT,  # Default to UNIT for new products
+                status=PENDING_REVIEW,  # New products are pending review by default
+                image=image_file,
+            )
+
+        # Ensure product is set for the StockEntry
+        if not product:
+            raise serializers.ValidationError(
+                {"product": "Product must be provided or created."}
+            )
+
+        # Create the StockEntry instance using the resolved product
+        stock_entry = StockEntry.objects.create(
+            shop=shop,
+            worker=worker,
+            product=product,
+            **validated_data,  # Pass remaining validated data (quantity, purchase_price, notes)
+        )
+        return stock_entry
+
+    def update(self, instance, validated_data):
+        pass  # Not used for this action
