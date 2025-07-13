@@ -1,0 +1,86 @@
+{
+    "@@locale": "sw",
+    "welcomeMessage": "Karibu, {managerName}",
+    "@welcomeMessage": {
+    "placeholders": {
+        "managerName": {
+        "type": "String"
+        }
+    }
+    },
+    "dashboardOverview": "Muhtasari wa Biashara",
+    "quickStockOverview": "Muhtasari wa Bidhaa Zako",
+    "stockIn": "Bidhaa Zilizoingia",
+    "stockOut": "Mauzo",
+    "missedSales": "Mauzo Yaliyokosekana",
+    "weeklyStockMovementAnalytics": "Uchambuzi wa Harakati za Bidhaa",
+    "quickActions": "Kazi za Haraka",
+    "recordSales": "Rekodi Mauzo",
+    "recordStockIn": "Ingiza Bidhaa",
+    "viewInventory": "Angalia Bidhaa",
+    "salesReport": "Ripoti ya Mauzo",
+    "manageProducts": "Bidhaa Zako",
+    "manageWorkers": "Wafanyakazi",
+    "managerMenu": "Menyu ya Meneja",
+    "profileSettings": "Mipangilio ya Wasifu",
+    "logout": "Toka",
+    "navigatingTo": "Inakwenda kwenye {screenName}...",
+    "@navigatingTo": {
+    "placeholders": {
+        "screenName": {
+        "type": "String"
+        }
+    }
+    },
+    "notImplementedYet": "(Bado haijatekelezwa)",
+    "monday": "Jtatu",
+    "tuesday": "Jnnne",
+    "wednesday": "Jtano",
+    "thursday": "Alhms",
+    "friday": "Ijumaa",
+    "saturday": "Jmosi",
+    "sunday": "Jpili",
+    "inviteWorker": "Alika Mfanyakazi",
+    "enterPhoneNumber": "Weka namba ya simu",
+    "selectFromContacts": "Chagua kutoka kwa Anwani",
+    "sendInvite": "Tuma Mwaliko",
+    "contactPermissionDenied": "Ruhusa ya anwani imekataliwa. Tafadhali iwashe kwenye mipangilio ili kuchagua anwani.",
+    "noPhoneNumberSelected": "Hakuna namba ya simu iliyochaguliwa.",
+    "inviteSentSuccessfully": "Mwaliko umetuma kwa {phoneNumber}!",
+    "@inviteSentSuccessfully": {
+    "placeholders": {
+        "phoneNumber": {
+        "type": "String"
+        }
+    }
+    },
+    "inviteFailed": "Imeshindwa kutuma mwaliko kwa {phoneNumber}.",
+    "@inviteFailed": {
+    "placeholders": {
+        "phoneNumber": {
+        "type": "String"
+        }
+    }
+    },
+    "invalidPhoneNumber": "Tafadhali weka namba ya simu halali.",
+    "phoneNumberAlreadyAdded": "Namba hii ya simu tayari imeongezwa.",
+    "addPhoneNumber": "Ongeza Namba ya Simu",
+    "selectedContacts": "Anwani Zilizochaguliwa",
+    "registerYourShop": "Sajili Duka Lako",
+    "shopName": "Jina la Duka",
+    "shopAddress": "Anwani ya Duka",
+    "completeShopRegistration": "Kamilisha Usajili wa Duka",
+    "registerManager": "Sajili Meneja",
+    "managerName": "Jina la Meneja",
+    "managerPhone": "Namba ya Simu ya Meneja",
+    "completeManagerRegistration": "Kamilisha Usajili wa Meneja",
+    "workerManagementCenter": "Usimamizi wa Wafanyakazi",
+    "searchWorkers": "Tafuta Wafanyakazi",
+    "workerActivityLog": "Shughuli za Mfanyakazi",
+    "noActivityRecorded": "Hakuna shughuli iliyorekodiwa kwa mfanyakazi huyu.",
+    "noWorkersFound": "Hakuna wafanyakazi kwenye mfumo wako.",
+    "workerRemoved": "Mfanyakazi katolewa!",
+    "workerProfile": "Taarifa",
+    "actionsToday": "Kinachoendelea",
+    "lastActivity": "Kazi ya hivi karibuni"
+}

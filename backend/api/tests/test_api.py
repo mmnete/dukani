@@ -6,6 +6,8 @@ from rest_framework.test import APITestCase, APIClient
 from django.contrib.auth.models import User
 from decimal import Decimal
 import uuid
+from django.utils import timezone
+from datetime import timedelta
 from io import BytesIO
 from PIL import Image
 import json
@@ -26,8 +28,10 @@ from api.models import (
     GENUINE,
     FAKE,
     REFURBISHED,
+    InviteToken,
 )
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.exceptions import ValidationError
 
 
 class APIIntegrationTests(APITestCase):
@@ -323,6 +327,62 @@ class APIIntegrationTests(APITestCase):
         for global_product in GlobalProduct.objects.all():
             if global_product.image:
                 global_product.image.delete(save=False)
+
+    def test_invite_token_creation_and_expiry_logic(self):
+        phone_number = f"+25576543210_{uuid.uuid4().hex[:8]}"
+        worker = Worker.objects.create(
+            shop=self.shop1,
+            first_name="Test Worker",
+            phone_number=phone_number,
+            email="worker@example.com"
+        )
+
+        token = InviteToken.objects.create(
+            worker=worker,
+            shop=self.shop1,
+            created_by=self.manager_user,
+            expires_at=timezone.now() + timedelta(hours=1)
+        )
+
+        self.assertEqual(InviteToken.objects.count(), 1)
+        self.assertEqual(token.worker.phone_number, phone_number)
+        self.assertEqual(token.shop, self.shop1)
+        self.assertTrue(token.is_valid())
+
+        # Expire the token manually
+        token.expires_at = timezone.now() - timedelta(minutes=1)
+        token.save()
+        self.assertFalse(token.is_valid())
+
+
+    def test_cannot_create_duplicate_active_invite_tokens(self):
+        phone_number = f"+25576543210_{uuid.uuid4().hex[:8]}"
+        expires_at = timezone.now() + timedelta(hours=1)
+
+        worker = Worker.objects.create(
+            shop=self.shop1,
+            first_name="Test Worker",
+            phone_number=phone_number,
+            email="worker@example.com"
+        )
+
+        # First token - should succeed
+        InviteToken.objects.create(
+            worker=worker,
+            shop=self.shop1,
+            created_by=self.manager_user,
+            expires_at=expires_at,
+        )
+
+        # Second token - should raise ValidationError because the first is still active
+        with self.assertRaises(ValidationError):
+            InviteToken.objects.create(
+                worker=worker,
+                shop=self.shop1,
+                created_by=self.manager_user,
+                expires_at=expires_at,
+            )
+
 
     # --- Shop API Tests ---
     def test_manager_can_list_only_their_shops(self):

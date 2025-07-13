@@ -1,0 +1,86 @@
+{
+    "@@locale": "en",
+    "welcomeMessage": "Welcome, {managerName}",
+    "@welcomeMessage": {
+    "placeholders": {
+        "managerName": {
+        "type": "String"
+        }
+    }
+    },
+    "dashboardOverview": "Dashboard Overview",
+    "quickStockOverview": "Quick Stock Overview",
+    "stockIn": "Stock In",
+    "stockOut": "Sales",
+    "missedSales": "Missed Sales",
+    "weeklyStockMovementAnalytics": "Weekly Stock Movement Analytics",
+    "quickActions": "Quick Actions",
+    "recordSales": "Record Sales",
+    "recordStockIn": "Record Stock In",
+    "viewInventory": "View Inventory",
+    "salesReport": "Sales Report",
+    "manageProducts": "Manage Products",
+    "manageWorkers": "Manage Workers",
+    "managerMenu": "Manager Menu",
+    "profileSettings": "Profile Settings",
+    "logout": "Logout",
+    "navigatingTo": "Navigating to {screenName}...",
+    "@navigatingTo": {
+    "placeholders": {
+        "screenName": {
+        "type": "String"
+        }
+    }
+    },
+    "notImplementedYet": "(Not implemented yet)",
+    "monday": "Mon",
+    "tuesday": "Tue",
+    "wednesday": "Wed",
+    "thursday": "Thu",
+    "friday": "Fri",
+    "saturday": "Sat",
+    "sunday": "Sun",
+    "inviteWorker": "Invite Worker",
+    "enterPhoneNumber": "Enter phone number",
+    "selectFromContacts": "Select from Contacts",
+    "sendInvite": "Send Invite",
+    "contactPermissionDenied": "Contact permission denied. Please enable it in settings to select contacts.",
+    "noPhoneNumberSelected": "No phone number selected.",
+    "inviteSentSuccessfully": "Invite sent successfully to {phoneNumber}!",
+    "@inviteSentSuccessfully": {
+    "placeholders": {
+        "phoneNumber": {
+        "type": "String"
+        }
+    }
+    },
+    "inviteFailed": "Failed to send invite to {phoneNumber}.",
+    "@inviteFailed": {
+    "placeholders": {
+        "phoneNumber": {
+        "type": "String"
+        }
+    }
+    },
+    "invalidPhoneNumber": "Please enter a valid phone number.",
+    "phoneNumberAlreadyAdded": "This phone number is already added.",
+    "addPhoneNumber": "Add Phone Number",
+    "selectedContacts": "Selected Contacts",
+    "registerYourShop": "Register Your Shop",
+    "shopName": "Shop Name",
+    "shopAddress": "Shop Address",
+    "completeShopRegistration": "Complete Shop Registration",
+    "registerManager": "Register Manager",
+    "managerName": "Manager Name",
+    "managerPhone": "Manager Phone",
+    "completeManagerRegistration": "Complete Manager Registration",
+    "workerManagementCenter": "Worker Management Center",
+    "searchWorkers": "Search Workers",
+    "workerActivityLog": "Worker Activity Log",
+    "noActivityRecorded": "No activity recorded for this worker.",
+    "noWorkersFound": "You have no workers yet.",
+    "workerRemoved": "Worker Removed!",
+    "workerProfile": "Profile",
+    "actionsToday": "Actions Today",
+    "lastActivity": "Last Activity"
+}

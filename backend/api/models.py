@@ -6,6 +6,10 @@ from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator
 from django.db.models import Sum
 from decimal import Decimal
+from django.utils import timezone
+import string
+import random
+from django.core.exceptions import ValidationError
 
 # --- Choices for quantity_type ---
 QUANTITY_TYPE_CHOICES = [
@@ -90,7 +94,9 @@ class Worker(models.Model):
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE, related_name="workers")
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100, blank=True, null=True)
-    phone_number = models.CharField(max_length=30)  # Used for worker identification/login
+    phone_number = models.CharField(
+        max_length=30
+    )  # Used for worker identification/login
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -343,3 +349,54 @@ class MissedSaleEntry(models.Model):
     def __str__(self):
         product_info = self.product.name if self.product else self.product_name_text
         return f"Missed Sale: {product_info} - {self.quantity_requested} in {self.shop.name} ({self.reason})"
+
+
+class InviteToken(models.Model):
+    worker = models.OneToOneField(
+        "Worker", on_delete=models.CASCADE, related_name="invite_token"
+    )
+    shop = models.ForeignKey(
+        "Shop", on_delete=models.CASCADE, related_name="invite_tokens"
+    )
+    created_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_invite_tokens",
+    )
+    code = models.CharField(max_length=12, unique=True)
+    expires_at = models.DateTimeField()
+
+    def is_valid(self):
+        return timezone.now() < self.expires_at
+
+    def clean(self):
+        # Ensure only one active token per worker per shop
+        if (
+            InviteToken.objects.filter(
+                worker=self.worker, shop=self.shop, expires_at__gt=timezone.now()
+            )
+            .exclude(pk=self.pk)
+            .exists()
+        ):
+            raise ValidationError(
+                "An active invite token already exists for this worker and shop."
+            )
+
+    def _generate_unique_code(self):
+        length = 8
+        chars = string.ascii_uppercase + string.digits
+        while True:
+            new_code = "".join(random.choices(chars, k=length))
+            if not InviteToken.objects.filter(code=new_code).exists():
+                return new_code
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = self._generate_unique_code()
+
+        self.full_clean()  # Calls clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"InviteToken(code={self.code}, worker={self.worker}, shop={self.shop})"

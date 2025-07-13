@@ -20,4 +20,7 @@ router.register(r'product-categories', views.CategoryViewSet, basename='product-
 # The API URLs are now determined automatically by the router.
 urlpatterns = [
     path('', include(router.urls)),
+    
+    path('auth/dummy-login/', views.dummy_login, name='dummy_login'),
+    path('auth/me/', views.me, name='me'),  # Optional but useful
 ]

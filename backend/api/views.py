@@ -21,7 +21,8 @@ from decimal import Decimal
 import uuid  # For generating UUIDs for new products/entries
 from django.utils import timezone  # For setting recorded_at
 from django.db import transaction  # For atomic operations
-
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from .models import (
     Shop,
     Worker,
@@ -36,10 +37,12 @@ from .models import (
     WEIGHT_VOLUME,
     PENDING_REVIEW,
     LINKED,
+    InviteToken,
 )
 from .serializers import (
     ShopSerializer,
     WorkerSerializer,
+    UserSerializer,
     CategorySerializer,
     GlobalProductSerializer,
     ProductSerializer,
@@ -55,7 +58,67 @@ from .permissions import (
     IsAdminUser,
     IsManagerOfRelatedShop,
 )
+from .auth.token_store import generate_token_for, remove_token
+from rest_framework.decorators import api_view
 
+
+@api_view(['GET'])
+def me(request):
+    """
+    Returns information about the currently logged-in user or worker.
+    """
+    user = request.user
+
+    if hasattr(user, 'worker'):
+        # If a Worker is logged in
+        worker = user.worker
+        return Response({
+            "role": "worker",
+            "worker": WorkerSerializer(worker).data
+        })
+    else:
+        # Otherwise return user info (e.g. manager)
+        return Response({
+            "role": "manager",
+            "user": UserSerializer(user).data
+        })
+
+@api_view(["POST"])
+def dummy_login(request):
+    phone = request.data.get("phone")
+    role = request.data.get("role", "worker")
+
+    if not phone:
+        return Response({"detail": "Phone number required."}, status=400)
+
+    if role == "worker":
+        from api.models import Worker
+        try:
+            worker = Worker.objects.get(phone_number=phone)
+            token = generate_token_for(worker)
+            return Response({"token": token, "role": "worker"})
+        except Worker.DoesNotExist:
+            return Response({"detail": "Worker not found."}, status=404)
+
+    elif role == "manager":
+        from django.contrib.auth.models import User
+        try:
+            user = User.objects.get(username=phone)
+            token = generate_token_for(user)
+            return Response({"token": token, "role": "manager"})
+        except User.DoesNotExist:
+            return Response({"detail": "Manager not found."}, status=404)
+
+    return Response({"detail": "Invalid role."}, status=400)
+
+@api_view(["POST"])
+def dummy_logout(request):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Token "):
+        return Response({"detail": "Authorization header missing."}, status=401)
+    token = auth_header.replace("Token ", "")
+    remove_token(token)
+    return Response({"detail": "Logged out."})
 
 class ShopCategoryViewSet(viewsets.ModelViewSet):
     """
@@ -122,6 +185,122 @@ class ShopViewSet(viewsets.ModelViewSet):
                 permissions.IsAuthenticated
             ]  # Authenticated users can list/retrieve
         return [permission() for permission in self.permission_classes]
+
+    @action(detail=False, methods=["post"], url_path="onboard-shop")
+    def onboard_shop(self, request):
+        """
+        Allows a new or existing user to onboard a shop.
+        If user is authenticated, we associate them as the manager.
+        """
+        user = request.user
+        data = request.data
+
+        if not user.is_authenticated:
+            return Response(
+                {"detail": "Authentication required."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        # Create the Shop
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        shop = serializer.save()
+
+        # Add current user as a manager of the shop
+        shop.managers.add(user)
+
+        return Response(
+            {"detail": "Shop onboarded successfully.", "shop_id": shop.id},
+            status=status.HTTP_201_CREATED,
+        )
+        
+    @method_decorator(csrf_exempt)
+    @action(detail=True, methods=["post"], url_path="onboard-manager")
+    def onboard_manager(self, request, pk=None):
+        try:
+            shop = Shop.objects.get(pk=pk)
+        except Shop.DoesNotExist:
+            return Response({"detail": "Shop not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        data = request.data
+        first_name = data.get("first_name")
+        last_name = data.get("last_name")
+        phone_number = data.get("phone_number")
+
+        if not first_name or not last_name or not phone_number:
+            return Response(
+                {"detail": "First name, last name, and phone number are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Use phone number as username
+        username = phone_number
+
+        if User.objects.filter(username=username).exists():
+            return Response(
+                {"detail": "Manager with this phone number already exists."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Create user with no password
+        user = User(username=username, first_name=first_name, last_name=last_name)
+        user.set_unusable_password()
+        user.save()
+
+        # Add user as manager of the shop
+        shop.managers.add(user)
+
+        return Response(
+            {"detail": "Manager onboarded successfully.", "manager_id": user.id},
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="invite-worker",
+        permission_classes=[IsManagerOfShop | IsAdminUser],
+    )
+    def invite_worker(self, request, pk=None):
+        """
+        Allows a shop manager to invite a worker.
+        Returns an invite code for now. Later can be sent via SMS/WhatsApp.
+        """
+        shop = self.get_object()
+        first_name = request.data.get("first_name")
+        phone_number = request.data.get("phone_number")
+        email = request.data.get("email", "")
+
+        if not first_name or not phone_number:
+            return Response(
+                {"detail": "Missing first_name or phone_number"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Create the worker
+        worker = Worker.objects.create(
+            shop=shop, first_name=first_name, phone_number=phone_number, email=email
+        )
+
+        # Create invite token
+        invite_code = uuid.uuid4().hex[:6].upper()
+        expiry = timezone.now() + timedelta(days=2)
+
+        InviteToken.objects.create(worker=worker, code=invite_code, expires_at=expiry)
+
+        # SIMULATED SMS/WHATSAPP (can be replaced with actual API later)
+        print(
+            f"📱 Fake Invite Sent: Worker Invite Code for {phone_number} is {invite_code}"
+        )
+
+        return Response(
+            {
+                "detail": "Worker invited.",
+                "invite_code": invite_code,
+                "worker_id": worker.id,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(
         detail=True,
@@ -250,6 +429,44 @@ class WorkerViewSet(viewsets.ModelViewSet):
             self.permission_classes = [permissions.IsAuthenticated]
 
         return [permission() for permission in self.permission_classes]
+
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="accept-invite",
+        permission_classes=[permissions.AllowAny],
+    )
+    def accept_invite(self, request):
+        """
+        Worker uses this endpoint to accept an invite using the code.
+        """
+        code = request.data.get("code")
+
+        if not code:
+            return Response(
+                {"detail": "Invite code is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            token = InviteToken.objects.get(code=code)
+        except InviteToken.DoesNotExist:
+            return Response(
+                {"detail": "Invalid invite code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not token.is_valid():
+            return Response(
+                {"detail": "Invite code has expired."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        worker = token.worker
+        token.delete()  # remove token after use
+
+        serializer = WorkerSerializer(worker)
+        return Response({"worker": serializer.data}, status=status.HTTP_200_OK)
 
 
 class CategoryViewSet(viewsets.ModelViewSet):

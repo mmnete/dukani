@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSContactsUsageDescription</key>
+	<string>This app needs access to your contacts to allow you to invite workers from your phonebook.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>We need camera access to scan product barcodes.</string>
 </dict>
 </plist>

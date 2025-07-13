@@ -2,55 +2,210 @@
 
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:async'; // Import for TimeoutException
+import 'dart:async';
+import './api_provider.dart';
+import 'package:flutter/material.dart';
 
-// --- API Configuration (IMPORTANT: Update for Docker environment) ---
-// If running Django backend in Docker:
-// - For Android Emulator: Use '10.0.2.2' which is an alias for your host machine's localhost.
-// - For Physical Android Device: Use your host machine's actual local IPv4 address (e.g., '192.168.1.100').
-//   Ensure your Docker container is publishing the port (e.g., -p 8000:8000).
-// - Ensure your Django development server is running with `python manage.py runserver 0.0.0.0:8000`
-//   inside the Docker container to be accessible from outside.
-const String API_BASE_URL = 'http://10.0.0.222:8000/api/'; // <-- UPDATED FOR ANDROID EMULATOR WITH DOCKER
+// --- API Configuration ---
+// Change this URL in one place to switch between local/dev/prod backend easily
+class ApiConfig {
+  static String baseUrl = 'http://10.0.0.222:8000/api/';
 
-// ApiService class to handle all API calls
-class ApiService {
-  // Method to post a new stock entry
-  // It returns true on success, false on failure
+  // Example method to update baseUrl at runtime if needed
+  static void updateBaseUrl(String newUrl) {
+    baseUrl = newUrl;
+  }
+}
+
+class ApiService implements ApiProvider {
+  // POST a new stock entry
+  @override
   Future<bool> postStockEntry(Map<String, dynamic> data) async {
-    final Uri url = Uri.parse('${API_BASE_URL}stock-entries/');
-    print('ApiService: Attempting to POST to $url with data: $data'); // Debug print
+    final Uri url = Uri.parse('${ApiConfig.baseUrl}stock-entries/');
+    print('ApiService: POST stock entry to $url with data: $data');
 
     try {
-      final response = await http.post(
-        url,
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-          // Add Authorization header if your API requires it (e.g., Token 'your_token')
-          // 'Authorization': 'Token YOUR_AUTH_TOKEN',
-        },
-        body: jsonEncode(data),
-      ).timeout(const Duration(seconds: 10)); // Set a timeout of 10 seconds
+      final response = await http
+          .post(
+            url,
+            headers: <String, String>{
+              'Content-Type': 'application/json; charset=UTF-8',
+            },
+            body: jsonEncode(data),
+          )
+          .timeout(const Duration(seconds: 10));
 
-      if (response.statusCode == 201) { // 201 Created is typical for successful POST
-        print('ApiService: Stock Entry POST successful! Response: ${response.body}'); // Debug print
+      if (response.statusCode == 201) {
+        print('ApiService: Stock entry POST success: ${response.body}');
         return true;
       } else {
-        print('ApiService: Stock Entry POST failed! Status: ${response.statusCode}, Body: ${response.body}'); // Debug print
-        // You might want to throw an exception or return a more detailed error object
+        print(
+          'ApiService: Stock entry POST failed. Status: ${response.statusCode}, Body: ${response.body}',
+        );
         return false;
       }
     } on TimeoutException catch (e) {
-      print('ApiService: Request timed out during Stock Entry POST: $e'); // Debug print for timeout
-      return false; // Indicate failure due to timeout
+      print('ApiService: Timeout posting stock entry: $e');
+      return false;
     } catch (e) {
-      print('ApiService: Network error during Stock Entry POST: $e'); // Debug print
-      // You might want to throw an exception or return a more detailed error object
+      print('ApiService: Error posting stock entry: $e');
       return false;
     }
   }
 
-  // You can add other API methods here as your app grows
-  // Future<Product> fetchProductDetails(String barcode) async { ... }
-  // Future<bool> postSaleEntry(Map<String, dynamic> data) async { ... }
+
+  @override
+  Future<bool> recordStockItem(Map<String, dynamic> data) async {
+    final Uri url = Uri.parse('${ApiConfig.baseUrl}stock-entries/');
+    print('ApiService: POST stock entry to $url with data: $data');
+
+    try {
+      final response = await http
+          .post(
+            url,
+            headers: <String, String>{
+              'Content-Type': 'application/json; charset=UTF-8',
+            },
+            body: jsonEncode(data),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 201) {
+        print('ApiService: Stock entry POST success: ${response.body}');
+        return true;
+      } else {
+        print(
+          'ApiService: Stock entry POST failed. Status: ${response.statusCode}, Body: ${response.body}',
+        );
+        return false;
+      }
+    } on TimeoutException catch (e) {
+      print('ApiService: Timeout posting stock entry: $e');
+      return false;
+    } catch (e) {
+      print('ApiService: Error posting stock entry: $e');
+      return false;
+    }
+  }
+
+  // POST to onboard a new shop
+  @override
+  Future<Map<String, dynamic>> onboardShop({
+    required String name,
+    required String address,
+    required BuildContext context,
+  }) async {
+    final Uri url = Uri.parse('${ApiConfig.baseUrl}shops/onboard-shop/');
+    String managerName = '';
+    String managerPhone = '';
+    print('ApiService: POST onboard shop to $url');
+
+    try {
+      final response = await http
+          .post(
+            url,
+            headers: <String, String>{
+              'Content-Type': 'application/json; charset=UTF-8',
+            },
+            body: jsonEncode({
+              'name': name,
+              'address': address,
+              'manager_name': managerName,
+              'manager_phone': managerPhone,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        print('ApiService: Shop onboarded successfully: $data');
+        return {'success': true, 'shop_id': data['shop_id']};
+      } else {
+        final errorData = jsonDecode(response.body);
+        print(
+          'ApiService: Failed to onboard shop. Status: ${response.statusCode}, Body: $errorData',
+        );
+        return {
+          'success': false,
+          'message': errorData['detail'] ?? 'Unknown error',
+        };
+      }
+    } on TimeoutException catch (e) {
+      print('ApiService: Timeout onboarding shop: $e');
+      return {'success': false, 'message': 'Request timed out'};
+    } catch (e) {
+      print('ApiService: Error onboarding shop: $e');
+      return {'success': false, 'message': 'Unexpected error occurred'};
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> inviteWorker({
+    required String shopId,
+    required String name,
+    required String phone,
+  }) async {
+    final Uri url = Uri.parse('${ApiConfig.baseUrl}shops/$shopId/invite-worker/');
+
+    try {
+      final response = await http
+          .post(
+            url,
+            headers: <String, String>{
+              'Content-Type': 'application/json; charset=UTF-8',
+              // Add Authorization header here if needed
+            },
+            body: jsonEncode({
+              'first_name': name,
+              'phone_number': phone,
+              // Optionally add 'email' if you want
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'invite_code': data['invite_code'],
+          'worker_id': data['worker_id'],
+        };
+      } else {
+        final errorData = jsonDecode(response.body);
+        return {
+          'success': false,
+          'message': errorData['detail'] ?? 'Unknown error',
+        };
+      }
+    } on TimeoutException catch (e) {
+      return {'success': false, 'message': 'Request timed out: $e'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error inviting worker: $e'};
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> onboardManager({
+    required String shopId,
+    required String managerName,
+    required String managerPhone,
+    required BuildContext context,
+  }) async {
+    final url = Uri.parse('${ApiConfig.baseUrl}}shops/$shopId/onboard-manager/');
+
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'manager_name': managerName,
+        'manager_phone': managerPhone,
+      }),
+    );
+
+    if (response.statusCode == 201 || response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to onboard manager: ${response.body}');
+    }
+  }
 }

@@ -50,6 +50,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    'api.auth.middleware.TokenAuthenticationMiddleware',
 ]
 
 ROOT_URLCONF = "dukani_backend.urls"

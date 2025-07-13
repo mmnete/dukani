@@ -1,0 +1,123 @@
+[
+    {
+        "name": "Arusha",
+        "districts": [
+            {
+                "name": "Arusha City"
+            },
+            {
+                "name": "Arusha Rural"
+            },
+            {
+                "name": "Karatu"
+            },
+            {
+                "name": "Longido"
+            },
+            {
+                "name": "Meru"
+            },
+            {
+                "name": "Monduli"
+            },
+            {
+                "name": "Ngorongoro"
+            }
+        ]
+    },
+    {
+        "name": "Dar es Salaam",
+        "districts": [
+            {
+                "name": "Ilala"
+            },
+            {
+                "name": "Kinondoni"
+            },
+            {
+                "name": "Temeke"
+            },
+            {
+                "name": "Kigamboni"
+            },
+            {
+                "name": "Ubungo"
+            }
+        ]
+    },
+    {
+        "name": "Dodoma",
+        "districts": [
+            {
+                "name": "Bahi"
+            },
+            {
+                "name": "Chemba"
+            },
+            {
+                "name": "Chamwino"
+            },
+            {
+                "name": "Kondoa"
+            },
+            {
+                "name": "Mpwapwa"
+            },
+            {
+                "name": "Kongwa"
+            },
+            {
+                "name": "Dodoma Urban"
+            }
+        ]
+    },
+    {
+        "name": "Mwanza",
+        "districts": [
+            {
+                "name": "Ilemela"
+            },
+            {
+                "name": "Nyamagana"
+            },
+            {
+                "name": "Kwimba"
+            },
+            {
+                "name": "Magu"
+            },
+            {
+                "name": "Misungwi"
+            },
+            {
+                "name": "Sengerema"
+            },
+            {
+                "name": "Ukerewe"
+            }
+        ]
+    },
+    {
+        "name": "Mbeya",
+        "districts": [
+            {
+                "name": "Mbarali"
+            },
+            {
+                "name": "Mbeya City"
+            },
+            {
+                "name": "Mbeya Rural"
+            },
+            {
+                "name": "Kyela"
+            },
+            {
+                "name": "Rungwe"
+            },
+            {
+                "name": "Busokelo"
+            }
+        ]
+    }
+]
