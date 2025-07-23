@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "674284982661",
+    "project_id": "dukani-4ca16",
+    "storage_bucket": "dukani-4ca16.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:674284982661:android:f325dbd08024f64b11b4ec",
+        "android_client_info": {
+          "package_name": "com.example.mobile_app_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCSudm5ihYo1m7u7CpCxlxjgN15Vii3r7g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,6 +1,7 @@
 // dukani/mobile_app_flutter/lib/services/api_service.dart
 
 import 'package:http/http.dart' as http;
+import 'package:mobile_app_flutter/models/models.dart';
 import 'dart:convert';
 import 'dart:async';
 import './api_provider.dart';
@@ -93,7 +94,8 @@ class ApiService implements ApiProvider {
   Future<Map<String, dynamic>> onboardShop({
     required String name,
     required String address,
-    required BuildContext context,
+    required String phoneNumber, // Shop's phone number
+    required String managerFirebaseUid, // Firebase UID of the manager creating the shop
   }) async {
     final Uri url = Uri.parse('${ApiConfig.baseUrl}shops/onboard-shop/');
     String managerName = '';
@@ -143,7 +145,8 @@ class ApiService implements ApiProvider {
   Future<Map<String, dynamic>> inviteWorker({
     required String shopId,
     required String name,
-    required String phone,
+    required String phoneNumber,
+    required String managerFirebaseUid, // UID of the manager inviting the worker
   }) async {
     final Uri url = Uri.parse('${ApiConfig.baseUrl}shops/$shopId/invite-worker/');
 
@@ -157,7 +160,7 @@ class ApiService implements ApiProvider {
             },
             body: jsonEncode({
               'first_name': name,
-              'phone_number': phone,
+              'phone_number': phoneNumber,
               // Optionally add 'email' if you want
             }),
           )
@@ -189,7 +192,7 @@ class ApiService implements ApiProvider {
     required String shopId,
     required String managerName,
     required String managerPhone,
-    required BuildContext context,
+    required String managerFirebaseUid, // Firebase UID of the manager being onboarded
   }) async {
     final url = Uri.parse('${ApiConfig.baseUrl}}shops/$shopId/onboard-manager/');
 
@@ -207,5 +210,17 @@ class ApiService implements ApiProvider {
     } else {
       throw Exception('Failed to onboard manager: ${response.body}');
     }
+  }
+
+  @override
+  Future<List<Shop>> getAllShops() {
+    // TODO: implement getAllShops
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<Map<String, dynamic>> getShopDetails(String shopId) {
+    // TODO: implement getShopDetails
+    throw UnimplementedError();
   }
 }

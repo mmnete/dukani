@@ -86,7 +86,8 @@ class _WorkerInvitationScreenState extends State<WorkerInvitationScreen>
       final result = await apiService.inviteWorker(
         shopId: shopId,
         name: phone,
-        phone: phone,
+        phoneNumber: phone,
+        managerFirebaseUid: sessionProvider.currentUser!.id
       );
 
       if (result['success'] == true) {

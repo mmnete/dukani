@@ -37,7 +37,8 @@ class _ShopOnboardingScreenState extends State<ShopOnboardingScreen> {
       final shopResult = await apiService.onboardShop(
         name: _shopNameController.text,
         address: _shopAddressController.text,
-        context: context, // Pass context
+        phoneNumber: '',
+        managerFirebaseUid: ''
       );
 
       if (shopResult['success'] == true) {

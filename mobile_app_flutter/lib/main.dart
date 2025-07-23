@@ -1,7 +1,7 @@
 // lib/main.dart
 
 import 'package:flutter/material.dart';
-import 'screens/onboarding/shop_onboarding_screen.dart';
+import 'screens/onboarding/new_user_onboarding.dart';
 import 'screens/invite_workers_screen.dart';
 import 'screens/worker/worker_home_screen.dart';
 import 'screens/worker/stock_entry_screen.dart';
@@ -105,10 +105,10 @@ class DukaniApp extends StatelessWidget {
             return const Scaffold(
               body: Center(child: CircularProgressIndicator()),
             );
-          } else if (sessionProvider.userId == null) {
+          } else if (!sessionProvider.isAuthenticated) {
             // If no userId, proceed with onboarding flow
             // In a real app, your ShopOnboardingScreen would handle setting userId and shopId
-            return ShopOnboardingScreen();
+            return OnboardingScreen(sessionProvider: sessionProvider);
           } else {
             // If userId exists, redirect to Manager Dashboard
             // Assuming 'Mohamed Mnete' is the default manager name for now.

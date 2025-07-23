@@ -1,6 +1,7 @@
 // lib/screens/manager_details_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 import '../../components/phone_input.dart';
 import '../../services/api_provider.dart'; // Adjust path as needed
 import '../manager/manager_dashboard_screen.dart'; // Adjust path as needed
@@ -41,7 +42,8 @@ class _ManagerOnboardingScreenState extends State<ManagerOnboardingScreen> {
         shopId: widget.shopId, // Use the shopId passed from the previous screen
         managerName: _managerNameController.text,
         managerPhone: _managerPhoneController.text,
-        context: context, // Pass context here
+        managerFirebaseUid: Uuid().v4()
+        // context: context, // Pass context here
       );
 
       if (managerResult['success'] == true) {
