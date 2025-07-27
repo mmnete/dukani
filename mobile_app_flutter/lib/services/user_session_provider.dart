@@ -186,6 +186,8 @@ class UserSessionProvider with ChangeNotifier {
 
       // Create the data map for Firestore
       final Map<String, dynamic> userData = {
+        'firstName': '',
+        'lastName': '',
         'name': name,
         'phoneNumber': phoneNumber, // Use the phone number provided during registration
         'userType': userType.toString().split('.').last, // 'manager' or 'worker'
@@ -202,6 +204,8 @@ class UserSessionProvider with ChangeNotifier {
       // Update local _currentUser state immediately for responsiveness
       if (userType == UserType.manager) {
         _currentUser = Manager(
+          //firstName: '',
+          //lastName: '',
           id: _currentUser!.id, // Preserve existing ID if any, or generate new
           name: name,
           phoneNumber: phoneNumber,
@@ -210,6 +214,8 @@ class UserSessionProvider with ChangeNotifier {
         );
       } else {
         _currentUser = Worker(
+          //firstName: '',
+          //lastName: '',
           id: _currentUser!.id, // Preserve existing ID if any, or generate new
           name: name,
           phoneNumber: phoneNumber,

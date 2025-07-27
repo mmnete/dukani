@@ -65,5 +65,5 @@ then to run tests
 docker-compose exec backend python manage.py test api
 
 If you ever do a model change:
-python manage.py makemigrations
-python manage.py migrate
+docker-compose exec backend python manage.py makemigrations api
+docker-compose exec backend python manage.py migrate

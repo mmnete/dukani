@@ -48,23 +48,18 @@ dependencies:
   firebase_core: ^2.0.0
   firebase_auth: ^4.0.0
   cloud_firestore: ^4.17.5
+  mockito: ^5.5.0
 
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  fl_chart: ^0.70.0
-  flutter_localizations: # Add this line
-    sdk: flutter        # Add this line
-  intl: ^0.20.2
-  permission_handler: ^11.1.0 # Add this line (or latest stable version)
-  flutter_contacts: ^1.1.6  # Add this line (or latest stable version)
-  shared_preferences: ^2.2.0
-  uuid: ^4.4.0
-  provider: ^6.1.2 
-  mobile_scanner: ^3.2.0
-  firebase_core: ^2.0.0
-  firebase_auth: ^4.0.0
+  test: ^1.20.0 # Or the latest version
+  mocktail: ^1.0.0 # For mocking dependencies if needed
+  shared_preferences_platform_interface: ^2.0.0 # For mocking shared_preferences
+  shared_preferences_web: ^2.0.0 # If targeting web, for shared_preferences
+  build_runner: ^2.4.0 # Or the very latest stable version from pub.dev
+  mockito: ^5.4.4      # Or the very latest stable version from pub.dev
 
 
   # The "flutter_lints" package below contains a set of recommended lints to

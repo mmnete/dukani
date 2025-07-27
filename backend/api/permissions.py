@@ -41,6 +41,7 @@ class IsManagerOfShop(permissions.BasePermission):
                 if not shop.managers.filter(id=user.id).exists():
                     # Explicitly raise PermissionDenied if user does not manage the shop for create action
                     raise PermissionDenied("You do not have permission to add workers to this shop.")
+                
                 return True # User manages the shop, grant permission for create
             except Shop.DoesNotExist:
                 # If shop does not exist, this is a validation error.
